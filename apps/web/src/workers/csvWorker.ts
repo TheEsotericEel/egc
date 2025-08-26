@@ -1,50 +1,125 @@
-/* eslint-disable no-restricted-globals */
-import { parse, ParseResult } from "papaparse";
+/*
+  CSV Worker: Papa Parse streaming in a Web Worker
 
-type WorkerMsgIn =
-  | { type: "PARSE_FILE"; file: File; options: { header: boolean; delimiter?: string } };
+  From main thread:
+    postMessage({ type: 'parse', file, options?: { header?: boolean; sampleSize?: number } })
+    postMessage({ type: 'cancel' })
 
-type WorkerMsgOut =
-  | { type: "PROGRESS"; progress: number }
-  | { type: "CHUNK"; rows: Record<string, string>[] }
-  | { type: "DONE"; rows: Record<string, string>[]; errors: string[] }
-  | { type: "ERROR"; error: string };
+  To main thread:
+    { type: 'ready' }
+    { type: 'progress', rows: number, bytes?: number, percent?: number }
+    { type: 'headers', headers: string[] }
+    { type: 'sample', rows: Array<Record<string, string | number>> }
+    { type: 'chunk', rows: number }
+    { type: 'done', rows: number }
+    { type: 'aborted' }
+    { type: 'error', message: string }
+*/
 
-self.onmessage = async (e: MessageEvent<WorkerMsgIn>) => {
-  try {
-    const data = e.data;
-    if (data.type !== "PARSE_FILE") return;
+import Papa, { type ParseResult } from "papaparse";
 
-    const allRows: Record<string, string>[] = [];
-    const errors: string[] = [];
-    let count = 0;
+type Row = Record<string, string | number>;
 
-    parse<Record<string, string>>(data.file, {
-      header: data.options.header,
-      delimiter: data.options.delimiter,
-      skipEmptyLines: true,
-      worker: false, // already inside a Web Worker
-      chunk: (res: ParseResult<Record<string, string>>) => {
-        if (res.errors?.length) {
-          for (const err of res.errors) errors.push(`${err.type}:${err.message}`);
+let aborted = false;
+
+function toNumberIfNumeric(v: unknown): string | number {
+  if (typeof v === "number") return v;
+  if (typeof v !== "string") return String(v ?? "");
+  const trimmed = v.trim();
+  if (trimmed === "") return "";
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : trimmed;
+}
+
+function normalizeRow(r: Record<string, unknown>): Row {
+  const out: Row = {};
+  for (const [k, v] of Object.entries(r)) out[k] = toNumberIfNumeric(v);
+  return out;
+}
+
+function post(type: string, payload?: Record<string, unknown>) {
+  // In worker context, global postMessage exists
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (postMessage as any)({ type, ...(payload ?? {}) });
+}
+
+onmessage = (ev: MessageEvent) => {
+  const data = ev.data;
+  if (!data || typeof data.type !== "string") return;
+
+  if (data.type === "cancel") {
+    aborted = true;
+    post("aborted");
+    return;
+  }
+
+  if (data.type === "parse") {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const file: File = data.file;
+    if (!file || typeof File === "undefined" || !(file instanceof File)) {
+      post("error", { message: "csvWorker: 'file' must be a File object." });
+      return;
+    }
+
+    const header: boolean = data.options?.header ?? true;
+    const sampleSize: number = Math.max(1, Math.min(200, data.options?.sampleSize ?? 20));
+
+    aborted = false;
+    let totalRows = 0;
+    let headersSent = false;
+    const sample: Row[] = [];
+
+    // Note: In a Worker we avoid Papa's own worker=true and rely on this context.
+    Papa.parse(file as unknown as any, {
+      header,
+      dynamicTyping: false,
+      skipEmptyLines: "greedy",
+      chunkSize: 1024 * 256,
+      chunk: (results: ParseResult<Record<string, unknown>>) => {
+        if (aborted) return;
+
+        if (!headersSent) {
+          const headers = Array.isArray(results.meta.fields)
+            ? results.meta.fields
+            : Object.keys((results.data as Record<string, unknown>[])[0] ?? {});
+          post("headers", { headers });
+          headersSent = true;
         }
-        if (res.data?.length) {
-          allRows.push(...res.data);
-          count += res.data.length;
-          (self as unknown as Worker).postMessage({ type: "CHUNK", rows: res.data } as WorkerMsgOut);
-          (self as unknown as Worker).postMessage({ type: "PROGRESS", progress: count } as WorkerMsgOut);
+
+        const rows = results.data as Record<string, unknown>[];
+        if (rows && rows.length > 0) {
+          for (let i = 0; i < rows.length && sample.length < sampleSize; i++) {
+            sample.push(normalizeRow(rows[i]));
+          }
+
+          totalRows += rows.length;
+          post("chunk", { rows: rows.length });
+
+          const cursor = (results as unknown as { meta?: { cursor?: number } })?.meta?.cursor;
+          if (typeof cursor === "number" && file.size > 0) {
+            const percent = Math.min(100, Math.round((cursor / file.size) * 100));
+            post("progress", { rows: totalRows, bytes: cursor, percent });
+          } else {
+            post("progress", { rows: totalRows });
+          }
         }
       },
       complete: () => {
-        (self as unknown as Worker).postMessage({ type: "DONE", rows: allRows, errors } as WorkerMsgOut);
+        if (aborted) {
+          post("aborted");
+          return;
+        }
+        post("sample", { rows: sample });
+        post("done", { rows: totalRows });
       },
-      error: (err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        (self as unknown as Worker).postMessage({ type: "ERROR", error: msg } as WorkerMsgOut);
-      }
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    (self as unknown as Worker).postMessage({ type: "ERROR", error: msg } as WorkerMsgOut);
+      error: (err: { message?: string }) => {
+        post("error", { message: err?.message || "Unknown CSV parse error" });
+      },
+    } as any);
+
+    return;
   }
-}
+};
+
+// Notify main thread that the worker is ready
+post("ready");
