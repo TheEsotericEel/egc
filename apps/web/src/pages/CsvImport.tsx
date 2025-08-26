@@ -2,66 +2,156 @@
 
 import React from "react";
 import CsvMappingWizard from "../components/CsvMappingWizard";
-
-/**
- * CsvImport
- * A thin host for the CSV Mapping Wizard.
- * Replace the placeholders with your actual CSV preview data and next-step handler.
- */
+import { parseCsvFile, type CsvWorkerEvent, type CsvParserHandle } from "../lib/csvParserClient";
 
 type Row = Record<string, string | number>;
 
 export default function CsvImport() {
-  // TODO: connect these to your existing CSV preview step.
-  // Replace the placeholders with real values from parser state.
-  // Examples: from context/store, props, or loader.
-  const headers: string[] =
-    /* __REPLACE_ME::HEADERS_FROM_PARSER__ */ [
-      // Temporary demo defaults so the page renders.
-      "Price",
-      "Shipping Charged",
-      "Shipping Cost",
-      "COGS",
-      "Fee %"
-    ];
+  const [file, setFile] = React.useState<File | null>(null);
+  const [parsing, setParsing] = React.useState(false);
+  const [progressRows, setProgressRows] = React.useState(0);
+  const [progressPercent, setProgressPercent] = React.useState<number | undefined>(undefined);
+  const [headers, setHeaders] = React.useState<string[] | null>(null);
+  const [sampleRows, setSampleRows] = React.useState<Row[]>([]);
+  const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
 
-  const sampleRows: Row[] =
-    /* __REPLACE_ME::ROWS_FROM_PARSER__ */ [
-      { "Price": 49.99, "Shipping Charged": 6.99, "Shipping Cost": 5.25, "COGS": 10.0, "Fee %": 13.25 },
-      { "Price": 24.0, "Shipping Charged": 0, "Shipping Cost": 4.12, "COGS": 3.0, "Fee %": 12.9 }
-    ];
+  const handleRef = React.useRef<CsvParserHandle | null>(null);
+
+  function resetState() {
+    setParsing(false);
+    setProgressRows(0);
+    setProgressPercent(undefined);
+    setHeaders(null);
+    setSampleRows([]);
+    setErrorMsg(null);
+    handleRef.current = null;
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+    resetState();
+  }
+
+  function startParse() {
+    if (!file) return;
+    setParsing(true);
+    setErrorMsg(null);
+    setProgressRows(0);
+    setProgressPercent(undefined);
+    setHeaders(null);
+    setSampleRows([]);
+
+    handleRef.current = parseCsvFile(
+      file,
+      { header: true, sampleSize: 20 },
+      (ev: CsvWorkerEvent) => {
+        switch (ev.type) {
+          case "ready":
+            break;
+          case "headers":
+            setHeaders(ev.headers);
+            break;
+          case "progress":
+            setProgressRows(ev.rows);
+            setProgressPercent(ev.percent);
+            break;
+          case "sample":
+            setSampleRows(ev.rows);
+            break;
+          case "error":
+            setErrorMsg(ev.message);
+            setParsing(false);
+            break;
+          case "aborted":
+            setParsing(false);
+            break;
+          case "done":
+            setParsing(false);
+            break;
+          default:
+            break;
+        }
+      }
+    );
+  }
+
+  function cancelParse() {
+    handleRef.current?.cancel();
+    handleRef.current = null;
+    setParsing(false);
+  }
 
   function handleConfirm(mapping: Record<string, string>) {
-    // Forward mapping to your next step:
-    // - Save to state and advance UI
-    // - Trigger rollups step to compute metrics (6-c)
-    // Replace console.log with your real consumer.
+    // Forward mapping to next step (rollups) or state store.
     // __REPLACE_ME::MAPPING_CONSUMER__
-    console.log("Confirmed CSV mapping:", mapping);
+    console.log("Confirmed mapping:", mapping);
     alert("Mapping confirmed. Wire this to your rollups step next.");
   }
 
   return (
-    <div className="container mx-auto max-w-5xl p-4 md:p-6">
-      <h1 className="text-2xl font-semibold mb-4">CSV Import</h1>
-      <p className="text-sm text-gray-600 mb-6">
-        Map your CSV headers to required fields, then continue to calculations.
-      </p>
+    <div className="container mx-auto max-w-5xl p-4 md:p-6 space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold">CSV Import</h1>
+        <p className="text-sm text-gray-600">Upload a CSV, parse it in a Web Worker, then map headers.</p>
+      </header>
 
-      <CsvMappingWizard
-        headers={headers}
-        sampleRows={sampleRows}
-        onConfirm={handleConfirm}
-        presetNamespace="orders"
-        // Optional: override required fields with custom labels/descriptions
-        // requiredFields={[
-        //   { key: "itemPrice", label: "Item Price" },
-        //   { key: "shippingCharged", label: "Shipping Charged" },
-        //   { key: "shippingCost", label: "Shipping Cost" },
-        //   { key: "cogs", label: "COGS" },
-        //   { key: "feeRate", label: "Fee Rate %" },
-        // ]}
-      />
+      <section className="rounded-2xl border p-4 space-y-3">
+        <label className="block text-sm font-medium">Choose CSV file</label>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onFileChange}
+          className="block w-full rounded border p-2"
+        />
+
+        <div className="flex gap-2">
+          <button
+            className="rounded-xl border px-4 py-2 disabled:opacity-50"
+            onClick={startParse}
+            disabled={!file || parsing}
+            title={!file ? "Select a CSV file first" : "Start parsing"}
+          >
+            Start parsing
+          </button>
+          <button
+            className="rounded-xl border px-4 py-2 disabled:opacity-50"
+            onClick={cancelParse}
+            disabled={!parsing}
+            title="Cancel parsing"
+          >
+            Cancel
+          </button>
+          <button
+            className="rounded-xl border px-4 py-2"
+            onClick={resetState}
+            title="Reset page state"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className="text-sm text-gray-700">
+          <div>Rows processed: <span className="font-mono">{progressRows}</span></div>
+          <div>Progress: <span className="font-mono">{progressPercent ?? "—"}{progressPercent != null ? "%" : ""}</span></div>
+          {errorMsg && (
+            <div className="mt-2 rounded-xl border border-rose-300 bg-rose-50 p-3 text-rose-700">
+              Error: {errorMsg}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {headers && headers.length > 0 && (
+        <section className="rounded-2xl border p-4">
+          <CsvMappingWizard
+            headers={headers}
+            sampleRows={sampleRows}
+            onConfirm={handleConfirm}
+            presetNamespace="orders"
+          />
+        </section>
+      )}
     </div>
   );
 }
