@@ -2,8 +2,6 @@
 
 _Last updated:_ 2025-08-26
 
-This file is the entrypoint for any AI reading this GitHub repo. It summarizes environment, rules, scope, progress, and next actions. Update this file after every commit that advances scope.
-
 ---
 
 ## 0) Environment and Conventions
@@ -82,12 +80,10 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 - [ ] 5-d
 
 6. CSV import (free tier)
-- [~] 6-a (partial)  
-  *Done:* `/csv` route, Web Worker parsing, preview table.  
-  *Pending:* mapping wizard UI + presets.  
-- [x] 6-b (Web Worker + Papa Parse streaming parse, progress UI)
-- [ ] 6-c
-- [ ] 6-d
+- [x] 6-a (mapping wizard UI with presets + validation integrated into /csv page)
+- [ ] 6-b (Web Worker + Papa Parse streaming parse, progress UI — scaffolded but not working)
+- [ ] 6-c (client-side rollups preview — code present, blocked until parsing fixed)
+- [ ] 6-d (first chart with Recharts — demo works, end-to-end blocked until parsing fixed)
 
 7. Estimation dashboard
 - [ ] 7-a
@@ -183,8 +179,8 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 
 22. Implementation phases
 - [~] 22-a (partial)  
-  *Done:* repo setup, calc-core scaffold + wired demo, env validation, CSV UI scaffold.  
-  *Pending:* Neon DB initialization, rollups posting.  
+  *Done:* repo setup, calc-core scaffold, env validation, CSV UI scaffold, mapping wizard component + integration.  
+  *Pending:* Neon DB initialization, rollups posting, worker parse fix.  
 - [ ] 22-b
 - [ ] 22-c
 - [ ] 22-d
@@ -194,14 +190,16 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 
 ## 3) Current Status (one-paragraph)
 
-Monorepo and tooling in place. Web app runs with calc-core functions and a CSV import page that streams parsing in a Web Worker and shows a preview. Env schemas validate for web and worker. Mapping wizard and Neon DB are next, followed by rollup posting.
+Monorepo and tooling in place. Mapping wizard and Recharts demo integrated into `/csv` page. Worker scaffolding exists but CSV parsing is not functioning yet, so rollup and chart preview are blocked. Recharts confirmed working via demo component. Next focus is fixing worker parsing end-to-end.
 
 ---
 
 ## 4) Next Actions (actionable queue)
 
-1) **CSV mapping wizard (6-a remainder)** — header→field dropdowns (`itemPrice`, `shippingCharged`, `shippingCost`, `cogs`, `feeRate`); local presets; validation before proceed.  
-2) **Neon DB init (2-a, 2-b)** — create project + pooling, roles `app_rw` and `app_ro`; set `DATABASE_URL` in `apps/worker/.env`.  
-3) **Rollups posting (6-c)** — client computes summary after parse and POSTs only summarized rollups to worker API.
+1) **Fix CSV Worker (6-b)** — ensure Papa Parse runs in Worker, progress + headers returned, rows accumulated.  
+2) **Compute rollups (6-c)** — once parsing works, feed real rows into rollupClient and preview table.  
+3) **First chart (6-d)** — confirm chart displays with actual rollup data, not demo.  
+4) **Neon DB init (2-a, 2-b)** — create project, roles `app_rw` and `app_ro`; set `DATABASE_URL` in `apps/worker/.env`.  
+5) **Rollups posting** — POST only summarized rollups to worker API.
 
 Owner: Joe
