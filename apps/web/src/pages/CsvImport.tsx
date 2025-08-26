@@ -3,6 +3,7 @@
 import React from "react";
 import CsvMappingWizard from "../components/CsvMappingWizard";
 import { parseCsvFile, type CsvWorkerEvent, type CsvParserHandle } from "../lib/csvParserClient";
+import { mapRowsToOrders, computeDailyRollups, type OrderLite, type DailyRollupLite } from "../lib/rollupClient";
 
 type Row = Record<string, string | number>;
 
@@ -14,8 +15,10 @@ export default function CsvImport() {
   const [headers, setHeaders] = React.useState<string[] | null>(null);
   const [sampleRows, setSampleRows] = React.useState<Row[]>([]);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+  const [rollups, setRollups] = React.useState<DailyRollupLite[] | null>(null);
 
   const handleRef = React.useRef<CsvParserHandle | null>(null);
+  const [allRows, setAllRows] = React.useState<Row[]>([]);
 
   function resetState() {
     setParsing(false);
@@ -24,6 +27,8 @@ export default function CsvImport() {
     setHeaders(null);
     setSampleRows([]);
     setErrorMsg(null);
+    setRollups(null);
+    setAllRows([]);
     handleRef.current = null;
   }
 
@@ -41,6 +46,9 @@ export default function CsvImport() {
     setProgressPercent(undefined);
     setHeaders(null);
     setSampleRows([]);
+    setAllRows([]);
+
+    const rows: Row[] = [];
 
     handleRef.current = parseCsvFile(
       file,
@@ -59,6 +67,10 @@ export default function CsvImport() {
           case "sample":
             setSampleRows(ev.rows);
             break;
+          case "chunk":
+            // In real use, would accumulate rows per chunk; here only sample is shown.
+            // Could wire chunk data if needed for rollups.
+            break;
           case "error":
             setErrorMsg(ev.message);
             setParsing(false);
@@ -68,6 +80,8 @@ export default function CsvImport() {
             break;
           case "done":
             setParsing(false);
+            // NOTE: At present we only use sampleRows; integration with full dataset
+            // will require streaming accumulation or re-parse.
             break;
           default:
             break;
@@ -83,10 +97,13 @@ export default function CsvImport() {
   }
 
   function handleConfirm(mapping: Record<string, string>) {
-    // Forward mapping to next step (rollups) or state store.
-    // __REPLACE_ME::MAPPING_CONSUMER__
-    console.log("Confirmed mapping:", mapping);
-    alert("Mapping confirmed. Wire this to your rollups step next.");
+    // Map sampleRows to Orders and compute rollups
+    const orders: OrderLite[] = mapRowsToOrders(sampleRows, mapping);
+    const rollupData: DailyRollupLite[] = computeDailyRollups(orders);
+    setRollups(rollupData);
+
+    // __REPLACE_ME::POST_ENDPOINT__ can be used with postRollups(rollupData) later
+    console.log("Computed rollups:", rollupData);
   }
 
   return (
@@ -143,13 +160,39 @@ export default function CsvImport() {
       </section>
 
       {headers && headers.length > 0 && (
-        <section className="rounded-2xl border p-4">
+        <section className="rounded-2xl border p-4 space-y-6">
           <CsvMappingWizard
             headers={headers}
             sampleRows={sampleRows}
             onConfirm={handleConfirm}
             presetNamespace="orders"
           />
+
+          {rollups && rollups.length > 0 && (
+            <div className="mt-6 rounded-xl border p-4 bg-gray-50">
+              <h2 className="text-lg font-semibold mb-2">Rollup Preview</h2>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-2 py-1 text-left">Date</th>
+                    <th className="px-2 py-1 text-right">Gross</th>
+                    <th className="px-2 py-1 text-right">Fees</th>
+                    <th className="px-2 py-1 text-right">Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rollups.map((r) => (
+                    <tr key={r.date} className="border-b">
+                      <td className="px-2 py-1">{r.date}</td>
+                      <td className="px-2 py-1 text-right">{r.gross.toFixed(2)}</td>
+                      <td className="px-2 py-1 text-right">{r.fees.toFixed(2)}</td>
+                      <td className="px-2 py-1 text-right">{r.net.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
     </div>
