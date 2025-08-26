@@ -2,7 +2,7 @@
   CSV Worker: Papa Parse streaming in a Web Worker
 
   From main thread:
-    postMessage({ type: 'parse', file, options?: { header?: boolean; sampleSize?: number } })
+    postMessage({ type: 'parse', file: Blob|File, options?: { header?: boolean; sampleSize?: number } })
     postMessage({ type: 'cancel' })
 
   To main thread:
@@ -54,10 +54,10 @@ onmessage = (ev: MessageEvent) => {
   }
 
   if (data.type === "parse") {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const file: File = data.file;
-    if (!file || typeof File === "undefined" || !(file instanceof File)) {
-      post("error", { message: "csvWorker: 'file' must be a File object." });
+    // Accept Blob | File; some worker runtimes lack File constructor
+    const file = data.file as Blob;
+    if (!file) {
+      post("error", { message: "csvWorker: missing file Blob." });
       return;
     }
 
@@ -69,7 +69,6 @@ onmessage = (ev: MessageEvent) => {
     let headersSent = false;
     const sample: Row[] = [];
 
-    // Note: In a Worker we avoid Papa's own worker=true and rely on this context.
     Papa.parse(file as unknown as any, {
       header,
       dynamicTyping: false,
@@ -96,8 +95,9 @@ onmessage = (ev: MessageEvent) => {
           post("chunk", { rows: rows.length });
 
           const cursor = (results as unknown as { meta?: { cursor?: number } })?.meta?.cursor;
-          if (typeof cursor === "number" && file.size > 0) {
-            const percent = Math.min(100, Math.round((cursor / file.size) * 100));
+          const size = (file as any)?.size as number | undefined;
+          if (typeof cursor === "number" && typeof size === "number" && size > 0) {
+            const percent = Math.min(100, Math.round((cursor / size) * 100));
             post("progress", { rows: totalRows, bytes: cursor, percent });
           } else {
             post("progress", { rows: totalRows });
