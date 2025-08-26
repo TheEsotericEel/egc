@@ -14,6 +14,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import RechartsDemo from "../components/RechartsDemo";
 
 type Row = Record<string, string | number>;
 
@@ -209,6 +210,11 @@ export default function CsvImport() {
           )}
         </section>
       )}
+
+      {/* Always-on demo to confirm Recharts works irrespective of CSV flow */}
+      <section className="rounded-2xl border p-4">
+        <RechartsDemo />
+      </section>
     </div>
   );
 }
