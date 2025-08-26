@@ -15,5 +15,6 @@
     "jsx": "react-jsx",
     "baseUrl": "."
   },
-  "include": ["apps", "packages"]
+  "include": ["apps/**/*", "packages/**/*"],
+  "exclude": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/build/**", "**/coverage/**"]
 }
