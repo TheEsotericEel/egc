@@ -47,6 +47,10 @@ export default function Home() {
             onChange={(e) => setShippingCost(Number(e.target.value))}
           />
         </label>
+          
+        <p className="mt-6">
+          <a href="/csv" className="underline">Go to CSV Import</a>
+        </p>
 
         <label className="grid gap-1">
           <span>COGS</span>
