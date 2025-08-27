@@ -18,7 +18,18 @@ type CalcFieldBase = {
   min?: number;
   max?: number;
   step?: number;
-  group: "Sale" | "Shipping" | "Promotions" | "Store" | "Goals" | "Other";
+  group:
+    | "Sale"
+    | "Shipping"
+    | "Promotions"
+    | "Store"
+    | "Goals"
+    | "Discounts"
+    | "Returns"
+    | "Taxes"
+    | "Payments"
+    | "International"
+    | "Other";
 };
 
 type MoneyField = CalcFieldBase & { type: "money" };
@@ -38,23 +49,49 @@ const FIELDS: CalcField[] = [
   // Shipping
   { key: "buyerPaysShipping", label: "Buyer pays shipping", type: "boolean", group: "Shipping" },
   { key: "shippingChargeToBuyer", label: "Shipping charged to buyer", type: "money", step: 0.01, min: 0, group: "Shipping" },
-  { key: "yourShippingCost", label: "Your shipping cost", type: "money", step: 0.01, min: 0, group: "Shipping" },
+  { key: "yourShippingCost", label: "Your shipping cost (per order)", type: "money", step: 0.01, min: 0, group: "Shipping" },
+  { key: "packagingCostPerOrder", label: "Packaging cost (per order)", type: "money", step: 0.01, min: 0, group: "Shipping", help: "Boxes, mailers, tape" },
+  { key: "insuranceCost", label: "Shipping insurance (per order)", type: "money", step: 0.01, min: 0, group: "Shipping" },
+  { key: "handlingFeeToBuyer", label: "Handling fee charged to buyer", type: "money", step: 0.01, min: 0, group: "Shipping" },
 
-  // Promotions
+  // Promotions / Ads
   { key: "promotedListingsRate", label: "Promoted Listings rate", type: "percent", step: 0.1, min: 0, max: 100, group: "Promotions" },
   { key: "promoShare", label: "Orders with promo applied", type: "percent", step: 1, min: 0, max: 100, group: "Promotions", help: "Percent of sales that incur ad fee" },
+  { key: "promoAdvancedBudget", label: "Promoted Listings Advanced budget (daily est.)", type: "money", step: 0.01, min: 0, group: "Promotions", help: "Placeholder for PPC budgets" },
 
   // Store and fees
   { key: "finalValueFeeRate", label: "Final value fee rate", type: "percent", step: 0.1, min: 0, max: 100, group: "Store", help: "Category+store tier blended %" },
+  { key: "categoryFeeOverrideRate", label: "Category override rate (optional)", type: "percent", step: 0.1, min: 0, max: 100, group: "Store", help: "If a specific category differs" },
+  { key: "topRatedSellerDiscountRate", label: "Top Rated Seller discount", type: "percent", step: 0.1, min: 0, max: 100, group: "Store", help: "TRS/TRS+ discount %" },
   { key: "paymentProcessingRate", label: "Payment processing rate", type: "percent", step: 0.1, min: 0, max: 100, group: "Store" },
   { key: "paymentFixedFee", label: "Payment fixed fee per order", type: "money", step: 0.01, min: 0, group: "Store" },
   { key: "monthlyStoreFee", label: "Monthly store subscription", type: "money", step: 0.01, min: 0, group: "Store" },
 
-  // Goals
-  { key: "netGoal", label: "Net goal (period)", type: "money", step: 0.01, min: 0, group: "Goals" },
+  // Discounts / Markdown
+  { key: "sellerCouponPercent", label: "Seller coupon or markdown", type: "percent", step: 0.1, min: 0, max: 100, group: "Discounts" },
+  { key: "offerToBuyerPercent", label: "Offer-to-buyer discount", type: "percent", step: 0.1, min: 0, max: 100, group: "Discounts" },
+
+  // Returns / Refunds
+  { key: "returnRatePercent", label: "Return rate (orders)", type: "percent", step: 0.1, min: 0, max: 100, group: "Returns" },
+  { key: "avgRefundPercent", label: "Avg refund % of order when returned", type: "percent", step: 0.1, min: 0, max: 100, group: "Returns" },
+  { key: "labelCostOnReturns", label: "Return label cost (avg per return)", type: "money", step: 0.01, min: 0, group: "Returns" },
+  { key: "restockingFeePercent", label: "Restocking fee charged to buyer", type: "percent", step: 0.1, min: 0, max: 100, group: "Returns" },
+
+  // Taxes
+  { key: "salesTaxOnItem", label: "Sales tax collected on item", type: "percent", step: 0.1, min: 0, max: 100, group: "Taxes", help: "Usually excluded from seller net" },
+  { key: "marketplaceFacilitatorTax", label: "Marketplace facilitator tax handled", type: "boolean", group: "Taxes", help: "If platform remits tax" },
+
+  // Payments / Misc platform
+  { key: "disputeRatePercent", label: "Payment disputes rate (orders)", type: "percent", step: 0.1, min: 0, max: 100, group: "Payments" },
+  { key: "avgDisputeLoss", label: "Avg loss per dispute (incl. fees)", type: "money", step: 0.01, min: 0, group: "Payments" },
+
+  // International
+  { key: "intlFeePercent", label: "International fee %", type: "percent", step: 0.1, min: 0, max: 100, group: "International", help: "Cross-border/currency conversion %" },
+  { key: "intlExtraShipCost", label: "Intl extra ship cost (avg per order)", type: "money", step: 0.01, min: 0, group: "International" },
 
   // Other
-  { key: "salesTaxOnItem", label: "Sales tax collected on item", type: "percent", step: 0.1, min: 0, max: 100, group: "Other", help: "Usually excluded from seller net" },
+  { key: "miscFixedCostPerOrder", label: "Misc fixed cost (per order)", type: "money", step: 0.01, min: 0, group: "Other" },
+  { key: "miscPercentOfGross", label: "Misc % of gross", type: "percent", step: 0.1, min: 0, max: 100, group: "Other" },
 
   // Future fields slot
   // __REPLACE_ME::FIELD_SCHEMA_ADDITIONS__
@@ -62,31 +99,63 @@ const FIELDS: CalcField[] = [
 
 // Default values for fast testing
 const DEFAULTS: Record<string, number | boolean> = {
+  // Sale
   price: 20,
   quantity: 1,
   cogs: 5,
 
+  // Shipping
   buyerPaysShipping: false,
   shippingChargeToBuyer: 0,
   yourShippingCost: 4.5,
+  packagingCostPerOrder: 0.25,
+  insuranceCost: 0,
+  handlingFeeToBuyer: 0,
 
+  // Promotions / Ads
   promotedListingsRate: 3.0,
   promoShare: 60,
+  promoAdvancedBudget: 0,
 
+  // Store and fees
   finalValueFeeRate: 13.25,
+  categoryFeeOverrideRate: 0,
+  topRatedSellerDiscountRate: 0,
   paymentProcessingRate: 2.9,
-  paymentFixedFee: 0.30,
+  paymentFixedFee: 0.3,
   monthlyStoreFee: 27.95,
 
-  netGoal: 1000,
+  // Discounts / Markdown
+  sellerCouponPercent: 0,
+  offerToBuyerPercent: 0,
 
+  // Returns / Refunds
+  returnRatePercent: 0,
+  avgRefundPercent: 100,
+  labelCostOnReturns: 0,
+  restockingFeePercent: 0,
+
+  // Taxes
   salesTaxOnItem: 0,
+  marketplaceFacilitatorTax: true,
+
+  // Payments / Misc platform
+  disputeRatePercent: 0,
+  avgDisputeLoss: 0,
+
+  // International
+  intlFeePercent: 0,
+  intlExtraShipCost: 0,
+
+  // Other
+  miscFixedCostPerOrder: 0,
+  miscPercentOfGross: 0,
 };
 
 type Inputs = typeof DEFAULTS;
 
 function asPct(n: number) {
-  return (n / 100);
+  return n / 100;
 }
 
 function currency(n: number) {
@@ -106,16 +175,17 @@ function clamp(n: number, min?: number, max?: number) {
  */
 function usePrefill(current: Inputs): Inputs {
   // TODO: __REPLACE_ME::PREFILL_SOURCE__
-  // Example future sources:
-  // - CSV rollups from /csv flow
-  // - API averages from eBay sync
-  // For now: return current unchanged.
   return current;
 }
 
 /**
  * Compute core rollup for preview purposes.
  * Replace with calc-core later.
+ *
+ * Notes:
+ * - Many bucket fields are not yet applied to the math preview.
+ * - We will integrate them incrementally with calc-core to keep recompute fast.
+ * - This file focuses on schema/UI completeness first.
  */
 function compute(inputs: Inputs) {
   const qty = Number(inputs.quantity) || 0;
@@ -126,37 +196,89 @@ function compute(inputs: Inputs) {
   const buyerPaysShipping = Boolean(inputs.buyerPaysShipping);
   const shippingChargeToBuyer = Number(inputs.shippingChargeToBuyer) || 0;
   const yourShippingCost = Number(inputs.yourShippingCost) || 0;
-  const shippingRevenue = buyerPaysShipping ? shippingChargeToBuyer : 0;
+  const packaging = Number(inputs.packagingCostPerOrder) || 0;
+  const insurance = Number(inputs.insuranceCost) || 0;
+  const handlingToBuyer = Number(inputs.handlingFeeToBuyer) || 0;
 
-  // Gross considered for FVF typically includes item + shipping charged to buyer.
-  const gross = itemSubtotal + shippingRevenue;
+  // Discounts applied to item price
+  const sellerCoupon = asPct(Number(inputs.sellerCouponPercent) || 0);
+  const offerToBuyer = asPct(Number(inputs.offerToBuyerPercent) || 0);
+  const discountMultiplier = 1 - clamp(sellerCoupon + offerToBuyer, 0, 1);
 
-  const finalValueFee = gross * asPct(Number(inputs.finalValueFeeRate) || 0);
-  const processingFee = gross * asPct(Number(inputs.paymentProcessingRate) || 0) + (qty > 0 ? Number(inputs.paymentFixedFee) || 0 : 0);
+  // Gross includes item after discounts + shipping charged + handling charged
+  const discountedItemSubtotal = itemSubtotal * discountMultiplier;
+  const shippingRevenue = buyerPaysShipping ? shippingChargeToBuyer + handlingToBuyer : 0;
+  const grossBase = discountedItemSubtotal + shippingRevenue;
 
-  // Promoted Listings: applied only to the share of orders that used ads
+  // FVF: optional category override, then TRS discount
+  const baseFvf = Number(inputs.categoryFeeOverrideRate) > 0 ? Number(inputs.categoryFeeOverrideRate) : Number(inputs.finalValueFeeRate) || 0;
+  const trsDiscount = asPct(Number(inputs.topRatedSellerDiscountRate) || 0);
+  const effectiveFvfRate = clamp(baseFvf * (1 - trsDiscount), 0, 100);
+  const finalValueFee = grossBase * asPct(effectiveFvfRate);
+
+  // Processing + fixed
+  const processingFee = grossBase * asPct(Number(inputs.paymentProcessingRate) || 0) + (qty > 0 ? Number(inputs.paymentFixedFee) || 0 : 0);
+
+  // Promoted Listings: share-based
   const promoRate = asPct(Number(inputs.promotedListingsRate) || 0);
   const promoShare = asPct(Number(clamp(Number(inputs.promoShare) || 0, 0, 100)));
-  const promoFee = gross * promoRate * promoShare;
+  const promoFee = grossBase * promoRate * promoShare;
+
+  // Misc percent
+  const miscPct = asPct(Number(inputs.miscPercentOfGross) || 0);
+  const miscPctFee = grossBase * miscPct;
+
+  // International extras
+  const intlPctFee = grossBase * asPct(Number(inputs.intlFeePercent) || 0);
+  const intlExtraShip = Number(inputs.intlExtraShipCost) || 0;
+
+  // Returns expected value (very simple placeholder EV)
+  const returnRate = asPct(Number(inputs.returnRatePercent) || 0);
+  const avgRefundPct = asPct(Number(inputs.avgRefundPercent) || 0);
+  const restockPct = asPct(Number(inputs.restockingFeePercent) || 0);
+  const expectedReturnLoss =
+    returnRate *
+    (grossBase * avgRefundPct - grossBase * restockPct + Number(inputs.labelCostOnReturns || 0));
+
+  // Disputes expected value
+  const disputeEV = asPct(Number(inputs.disputeRatePercent) || 0) * (Number(inputs.avgDisputeLoss) || 0);
+
+  // Per-order fixed costs
+  const perOrderFixed = packaging + insurance + (Number(inputs.miscFixedCostPerOrder) || 0);
+
+  // Shipping cost you pay, plus intl add-on EV
+  const totalShipCost = yourShippingCost + intlExtraShip;
+
+  // Costs
+  const fees =
+    finalValueFee +
+    processingFee +
+    promoFee +
+    miscPctFee +
+    intlPctFee +
+    disputeEV;
 
   const totalCOGS = cogs * qty;
-  const totalShipCost = yourShippingCost; // per-order estimate; refine later per-qty if needed
 
-  const fees = finalValueFee + processingFee + promoFee;
-  const net = gross - fees - totalCOGS - totalShipCost;
-  const marginPct = gross > 0 ? (net / gross) * 100 : 0;
+  const net = grossBase - fees - totalCOGS - totalShipCost - perOrderFixed - expectedReturnLoss;
+  const marginPct = grossBase > 0 ? (net / grossBase) * 100 : 0;
 
   return {
     qty,
-    itemSubtotal,
+    itemSubtotal: discountedItemSubtotal,
     shippingRevenue,
-    gross,
+    gross: grossBase,
     finalValueFee,
     processingFee,
     promoFee,
+    miscPctFee,
+    intlPctFee,
+    disputeEV,
     fees,
     totalCOGS,
     totalShipCost,
+    perOrderFixed,
+    expectedReturnLoss,
     net,
     marginPct,
   };
@@ -265,7 +387,7 @@ export default function CalculatorClient() {
 
   // Optional: sync prefill back into inputs once at mount if it ever diverges
   useEffect(() => {
-    // no-op for now; reserved for future CSV/API prefill normalization
+    // reserved for future CSV/API prefill normalization
   }, []);
 
   return (
@@ -306,19 +428,26 @@ export default function CalculatorClient() {
           <Group title="Results">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <ResultCard label="Qty" value={result.qty.toString()} />
-              <ResultCard label="Item Subtotal" value={currency(result.itemSubtotal)} />
+              <ResultCard label="Item Subtotal (after discounts)" value={currency(result.itemSubtotal)} />
               <ResultCard label="Shipping Revenue" value={currency(result.shippingRevenue)} />
               <ResultCard label="Gross" value={currency(result.gross)} />
               <ResultCard label="Final Value Fee" value={currency(result.finalValueFee)} />
               <ResultCard label="Processing Fee" value={currency(result.processingFee)} />
               <ResultCard label="Promo Fee" value={currency(result.promoFee)} />
-              <ResultCard label="Total Fees" value={currency(result.fees)} />
+              <ResultCard label="Misc % Fee" value={currency(result.miscPctFee)} />
+              <ResultCard label="Intl % Fee" value={currency(result.intlPctFee)} />
+              <ResultCard label="Dispute EV" value={currency(result.disputeEV)} />
               <ResultCard label="COGS" value={currency(result.totalCOGS)} />
-              <ResultCard label="Your Shipping Cost" value={currency(result.totalShipCost)} />
+              <ResultCard label="Shipping + Intl Extra" value={currency(result.totalShipCost)} />
+              <ResultCard label="Per-order Fixed" value={currency(result.perOrderFixed)} />
+              <ResultCard label="Returns EV" value={currency(result.expectedReturnLoss)} />
               <ResultCard label="Net" value={currency(result.net)} />
               <ResultCard label="Margin %" value={result.marginPct.toFixed(2) + "%"} />
               {/* __REPLACE_ME::RESULT_CARDS_EXTRA__ */}
             </div>
+            <p className="text-xs opacity-60 pt-2">
+              __REPLACE_ME::BUCKET_NOTES__
+            </p>
           </Group>
 
           <Group title="Chart">
