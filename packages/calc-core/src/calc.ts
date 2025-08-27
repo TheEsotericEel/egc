@@ -1,6 +1,5 @@
 /**
  * calc-core: pure math and types. No React. Deterministic rounding.
- * Next step: wire this into apps/web via an import and delete inline compute().
  */
 
 export type CalcInputs = {
@@ -55,9 +54,6 @@ export type CalcInputs = {
   // Other
   miscFixedCostPerOrder: number;
   miscPercentOfGross: number;     // %
-
-  // Goals (UI-driven; not used in compute)
-  netGoal: number;
 };
 
 export type CalcResult = {
@@ -94,8 +90,7 @@ function clamp(n: number, min = 0, max = 1) {
 }
 
 /**
- * Core compute. UI may pass extra fields, but we only use those defined here.
- * Monetary outputs are rounded to 2 decimals for stability.
+ * Core compute. Monetary outputs rounded to 2 decimals.
  */
 export function compute(inputs: CalcInputs): CalcResult {
   const qty = Number.isFinite(inputs.quantity) ? inputs.quantity : 0;
@@ -141,7 +136,7 @@ export function compute(inputs: CalcInputs): CalcResult {
   const miscPctFee = grossBase * pct(inputs.miscPercentOfGross || 0);
   const intlPctFee = grossBase * pct(inputs.intlFeePercent || 0);
 
-  // Returns EV (simple expectation)
+  // Returns EV
   const returnRate = clamp(pct(inputs.returnRatePercent || 0), 0, 1);
   const avgRefundPct = clamp(pct(inputs.avgRefundPercent || 0), 0, 1);
   const restockPct = clamp(pct(inputs.restockingFeePercent || 0), 0, 1);
