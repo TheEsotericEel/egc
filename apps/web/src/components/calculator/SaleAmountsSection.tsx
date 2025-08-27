@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCalculatorStore } from "../../stores/calculatorStore";
 
@@ -76,3 +76,8 @@ export default function SaleAmountsSection() {
     </section>
   );
 }
+
+
+
+
+

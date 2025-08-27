@@ -327,3 +327,8 @@ export const useCalculatorStore = create<State>((set, get) => ({
 
   recompute: () => set({ output: computeSafe(get().input) }),
 }));
+
+
+
+
+

@@ -1,4 +1,4 @@
-{
+﻿{
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "composite": true,
@@ -8,5 +8,6 @@
     "moduleResolution": "Node",
     "noEmit": false
   },
-  "include": ["./**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "**/apps/**"]
 }

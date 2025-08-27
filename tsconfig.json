@@ -1,20 +1,45 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noFallthroughCasesInSwitch": true,
-    "allowSyntheticDefaultImports": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "baseUrl": "."
-  },
-  "include": ["apps/**/*", "packages/**/*"],
-  "exclude": ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/build/**", "**/coverage/**"]
+    "compilerOptions":  {
+                            "target":  "ES2022",
+                            "lib":  [
+                                        "ES2022",
+                                        "DOM"
+                                    ],
+                            "module":  "ESNext",
+                            "moduleResolution":  "Node",
+                            "resolveJsonModule":  true,
+                            "esModuleInterop":  true,
+                            "forceConsistentCasingInFileNames":  true,
+                            "skipLibCheck":  true,
+                            "strict":  true,
+                            "noFallthroughCasesInSwitch":  true,
+                            "allowSyntheticDefaultImports":  true,
+                            "isolatedModules":  true,
+                            "jsx":  "react-jsx",
+                            "baseUrl":  ".",
+                            "paths":  {
+                                          "@egc/calc-core/*":  [
+                                                                   "packages/calc-core/src/*"
+                                                               ],
+                                          "@egc/calc-core":  [
+                                                                 "packages/calc-core/src"
+                                                             ]
+                                      }
+                        },
+    "include":  [
+                    "apps/**/*",
+                    "packages/**/*"
+                ],
+    "exclude":  [
+                    "**/node_modules/**",
+                    "**/.next/**",
+                    "**/dist/**",
+                    "**/build/**",
+                    "**/coverage/**"
+                ],
+    "paths":  {
+                  "@egc/calc-core":  [
+                                         "packages/calc-core/src"
+                                     ]
+              }
 }

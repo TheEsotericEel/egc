@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Core input representing a single order or a single manual scenario entry.
  * Every field is numeric in base currency units unless noted.
  * Optional fields default to 0 in math functions.
@@ -164,7 +164,7 @@ export type Rollup = {
   shippingRevenue: number;     // shipping charged to buyer
   discountsTotal: number;      // seller-funded discounts
   netOfDiscounts: number;      // gross - discounts you fund
-  feesTotal: number;           // Σ FeeBreakdown
+  feesTotal: number;           // S FeeBreakdown
   shippingCostTotal: number;   // labels, surcharges, insurance, etc.
   cogsTotal: number;           // item acquisition + prep + overhead alloc
   refundsTotal: number;        // refunds net of credits
@@ -185,3 +185,7 @@ export type CalcOutput = {
  * For now this is just a type. Implementation will follow in index.ts.
  */
 export type ComputeFn = (input: InputBuckets) => CalcOutput;
+
+
+
+

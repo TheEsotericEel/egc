@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata } from "next";
 import CalculatorClient from "./CalculatorClient";
 
 export const metadata: Metadata = {
@@ -10,3 +10,8 @@ export default function Page() {
   // Server component. Renders the client-only calculator wrapper.
   return <CalculatorClient />;
 }
+
+
+
+
+

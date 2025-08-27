@@ -10,3 +10,8 @@ export default function Page() {
   // Server component. Renders the client-only calculator wrapper.
   return <CalculatorClient />;
 }
+
+
+
+
+

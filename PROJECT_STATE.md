@@ -1,11 +1,9 @@
 # EGC — Project State (Single Source of Truth)
-
 _Last updated:_ 2025-08-27
 
 ---
 
 ## 0) Environment and Conventions
-
 - OS: Windows 11
 - Editor/Terminal: VS Code + PowerShell
 - Repo: https://github.com/TheEsotericEel/egc.git
@@ -19,7 +17,7 @@ _Last updated:_ 2025-08-27
 
 **Response rules for AI assistants**
 - Always show path, purpose, required inputs, placeholders above code.
-- Use `__REPLACE_ME::<KEY>__` for unknowns and list them.
+- Use `__REPLACE_ME::__` for unknowns and list them.
 - PowerShell commands in fenced blocks with **no trailing newline**.
 - When creating files: the same block must include `ni` and `code`. Create parent dirs if missing.
 - Provide full file contents on edits.
@@ -28,7 +26,6 @@ _Last updated:_ 2025-08-27
 ---
 
 ## 1) Project Overview
-
 Two-tier tool for eBay sellers that estimates and tracks net income against goals.
 - Free tier: CSV import + manual inputs.
 - Paid tier: OAuth to eBay APIs for automated averages and reconciliation.
@@ -48,17 +45,17 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 - [ ] 0-g
 
 1. Monorepo bootstrap
-- [x] 1-a  (repo with web, worker, calc-core created)
-- [x] 1-b  (tooling: TS, ESLint, Prettier, Vitest, Playwright; web tsconfig updated with JSX/ESNext/interop; package.json patched)
-- [x] 1-c  (env schema validation + .env.example files)
+- [x] 1-a (repo with web, worker, calc-core created)
+- [x] 1-b (tooling: TS, ESLint, Prettier, Vitest, Playwright; web tsconfig updated with JSX/ESNext/interop; package.json patched)
+- [x] 1-c (env schema validation + .env.example files)
 - [ ] 1-d
 - [ ] 1-e
 
 2. Database (Neon Postgres)
-- [ ] 2-a
-- [ ] 2-b
-- [ ] 2-c
-- [ ] 2-d
+- [x] 2-a (Neon project + DB `app` created)
+- [x] 2-b (local connection verified with `pg` via `apps/worker/src/db/testConnection.ts` using `.env.local`)
+- [ ] 2-c (schema + forward-only migrations)
+- [ ] 2-d (seed script with demo user)
 - [ ] 2-e
 - [ ] 2-f
 
@@ -80,10 +77,10 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 - [ ] 5-d
 
 6. CSV import (free tier)
-- [x] 6-a (mapping wizard UI with presets + validation integrated into /csv page)
-- [~] 6-b (Web Worker + Papa Parse streaming parse scaffolded; TS default import errors remain)
-- [ ] 6-c (client-side rollups preview blocked until parsing fixed)
-- [ ] 6-d (first chart with Recharts demo exists; blocked until parsing fixed)
+- [ ] 6-a (mapping wizard UI with presets + validation on `/csv` — **not built yet; queued after DB schema**)
+- [x] 6-b (Web Worker + Papa Parse streaming parse **fixed**; sends headers, chunked rows, progress; numeric coercion for `$`, `%`, commas, and `(123)` negatives)
+- [x] 6-c (client-side rollups preview from streamed chunks)
+- [x] 6-d (first chart with Recharts — renders average per detected numeric column; meaningful metrics will follow after 6-a mapping)
 
 7. Estimation dashboard
 - [x] 7-a (inputs wired with Zustand store; SaleAmountsSection built)
@@ -178,12 +175,12 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 - [ ] 21-h
 
 22. Implementation phases
-- [~] 22-a (partial)  
-  *Done:* repo setup, calc-core types+functions, env validation, CSV UI scaffold, mapping wizard integrated.  
-  *Pending:* Neon DB initialization, rollups posting, worker parse fix.  
-- [~] 22-b (partial)  
-  *Done:* calculatorStore (Zustand), SaleAmountsSection, CalculatorClient with tabs + rollup summary, permanent ESTIMATION badge.  
-  *Pending:* remaining input sections, goal tracking, CSV variance integration.  
+- [~] 22-a (partial)
+  - *Done:* repo setup, calc-core types+functions, env validation, **CSV worker fixed**, rollups + first chart wired, `.env.local` + Neon connection verified.
+  - *Pending:* DB schema + migrations, mapping wizard, rollups posting to worker.
+- [~] 22-b (partial)
+  - *Done:* calculatorStore (Zustand), SaleAmountsSection, CalculatorClient with tabs + rollup summary, permanent ESTIMATION badge.
+  - *Pending:* remaining input sections, goal tracking, CSV variance integration.
 - [ ] 22-c
 - [ ] 22-d
 - [ ] 22-e
@@ -191,18 +188,15 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 ---
 
 ## 3) Current Status (one-paragraph)
-
-Monorepo and tooling in place. `calc-core` now exports full types and a `compute()` covering all fee/COGS/refund buckets. Zustand store created and wired to a working `SaleAmountsSection`, rendered in a scaffolded `CalculatorClient` with rollup summary and permanent badge. Mapping wizard and Recharts demo integrated into `/csv` page. Worker scaffolding exists but CSV parsing still broken, blocking rollup and chart preview. Hydration mismatch fixed in layout. Next focus is wiring more sections of the dashboard and fixing CSV Worker end-to-end.
+End-to-end CSV path works: Worker streams chunks with headers, progress, and numeric coercion; client computes rollups and renders a first Recharts bar chart (avg per numeric column). UI contrast needs polish but is functional. Neon Postgres project is live and reachable via `apps/worker/.env.local` using `pg` and a `testConnection.ts` smoke test. Chart semantics are placeholder until 6-a mapping defines which columns are numeric vs identifiers.
 
 ---
 
 ## 4) Next Actions (actionable queue)
-0) **Incorporate all math calculations** — ensure all math is coded, tested, and read for scaling when we add in the API.
-1) **Fix CSV Worker (6-b)** — ensure Papa Parse runs in Worker, progress + headers returned, rows accumulated.  
-2) **Compute rollups (6-c)** — once parsing works, feed real rows into rollupClient and preview table.  
-3) **First chart (6-d)** — confirm chart displays with actual rollup data, not demo.  
-4) **Neon DB init (2-a, 2-b)** — create project, roles `app_rw` and `app_ro`; set `DATABASE_URL` in `apps/worker/.env`.  
-5) **Add remaining dashboard sections (7-a extension, 7-b)** — Shipping, COGS, Fees, Ads, Payments, etc.  
-6) **Rollups posting** — POST summarized rollups to worker API.  
+1) **DB schema & migrations (2-c)** — choose tool (Drizzle or Prisma), scaffold forward-only migrations for `users` and related tables; add seed script (2-d).  
+2) **Mapping wizard (6-a)** — per-column mapping with presets; ignore IDs/emails/order numbers; flag numeric fields for aggregation.  
+3) **Dashboard sections (7-b)** — Shipping, COGS, Fees, Ads, Payments; re-run `compute()` on change.  
+4) **Rollups posting** — POST summarized rollups to worker API for persistence.  
+5) **Chart controls** — allow Sum/Avg/Min/Max and column multi-select for clearer demos pre-6-a.
 
 Owner: Joe

@@ -12,14 +12,17 @@
     "dependencies": {
         "@egc/calc-core": "file:../../packages/calc-core",
         "next": "15.5.0",
+        "papaparse": "^5.5.3",
         "react": "19.1.0",
         "react-dom": "19.1.0",
+        "recharts": "^3.1.2",
         "zustand": "^5.0.8"
     },
     "devDependencies": {
         "@eslint/eslintrc": "^3",
         "@tailwindcss/postcss": "^4",
         "@types/node": "^20",
+        "@types/papaparse": "^5.3.16",
         "@types/react": "^19",
         "@types/react-dom": "^19",
         "eslint": "^9",

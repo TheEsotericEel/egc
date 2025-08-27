@@ -196,3 +196,29 @@ export function str(sold: number, listed: number) {
   if (!Number.isFinite(sold) || !Number.isFinite(listed) || listed <= 0) return 0;
   return Math.round(((sold / listed) * 100 + Number.EPSILON) * 100) / 100;
 }
+
+/**
+ * Lightweight helpers to match existing app imports.
+ * These do not replace compute(); they cover simple scenarios.
+ */
+export function gross(itemPrice: number, shippingCharged: number) {
+  const g = (Number(itemPrice) || 0) + (Number(shippingCharged) || 0);
+  return round2(g);
+}
+
+export function net(
+  itemPrice: number,
+  shippingCharged: number,
+  shippingCost: number,
+  cogs: number,
+  feeRate: number // decimal, e.g., 0.13 for 13%
+) {
+  const g = gross(itemPrice, shippingCharged);
+  const fees = g * (Number(feeRate) || 0);
+  const n = g - fees - (Number(shippingCost) || 0) - (Number(cogs) || 0);
+  return round2(n);
+}
+
+
+
+

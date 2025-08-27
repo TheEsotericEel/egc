@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import { compute, type CalcInputs, type CalcResult } from "@egc/calc-core";
 
 type TabId =
   | "sale"
