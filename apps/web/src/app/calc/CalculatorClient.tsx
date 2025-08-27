@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 /**
@@ -97,6 +97,20 @@ function clamp(n: number, min?: number, max?: number) {
   if (min != null && n < min) return min;
   if (max != null && n > max) return max;
   return n;
+}
+
+/**
+ * Prefill hook for 7-b:
+ * Later replace the TODO with CSV/API sources.
+ * Keeps UI stable while data source evolves.
+ */
+function usePrefill(current: Inputs): Inputs {
+  // TODO: __REPLACE_ME::PREFILL_SOURCE__
+  // Example future sources:
+  // - CSV rollups from /csv flow
+  // - API averages from eBay sync
+  // For now: return current unchanged.
+  return current;
 }
 
 /**
@@ -218,9 +232,21 @@ function Badge() {
   );
 }
 
+function ResultCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border p-3">
+      <div className="text-xs opacity-70">{label}</div>
+      <div className="text-base font-semibold">{value}</div>
+    </div>
+  );
+}
+
 export default function CalculatorClient() {
   // Build state from defaults
   const [inputs, setInputs] = useState<Inputs>({ ...DEFAULTS });
+
+  // Autofill slot for 7-b. Keeps UI constant as we swap sources later.
+  const prefilled = usePrefill(inputs);
 
   const groups = useMemo(() => {
     const map = new Map<string, CalcField[]>();
@@ -231,11 +257,16 @@ export default function CalculatorClient() {
     return Array.from(map.entries());
   }, []);
 
-  const result = useMemo(() => compute(inputs), [inputs]);
+  const result = useMemo(() => compute(prefilled), [prefilled]);
 
   function update(key: string, val: number | boolean) {
     setInputs((s) => ({ ...s, [key]: val }));
   }
+
+  // Optional: sync prefill back into inputs once at mount if it ever diverges
+  useEffect(() => {
+    // no-op for now; reserved for future CSV/API prefill normalization
+  }, []);
 
   return (
     <main className="p-6 grid gap-6">
@@ -300,14 +331,5 @@ export default function CalculatorClient() {
         </div>
       </div>
     </main>
-  );
-}
-
-function ResultCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border p-3">
-      <div className="text-xs opacity-70">{label}</div>
-      <div className="text-base font-semibold">{value}</div>
-    </div>
   );
 }
