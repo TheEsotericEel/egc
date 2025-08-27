@@ -1,8 +1,243 @@
-﻿import { create } from "zustand";
-import type { InputBuckets, CalcOutput } from "@egc/calc-core";
-import { compute } from "@egc/calc-core";
+import { create } from "zustand";
+import { compute, type CalcInputs, type CalcResult } from "@egc/calc-core";
 
-// Zeroed defaults matching calc-core types
+/**
+ * App-local types. These are UI-oriented buckets and are NOT part of calc-core.
+ */
+export type InputBuckets = {
+  sale: {
+    itemPrice: number;
+    quantity: number;
+    shippingChargedToBuyer: number;
+    sellerCouponDiscount: number;
+    orderLevelDiscount: number;
+    combinedOrderDiscount: number;
+    giftCardOrStoreCreditApplied: number;
+    tip: number;
+  };
+  shipping: {
+    postageLabelCost: number;
+    labelSurcharges: number;
+    insurance: number;
+    signatureOrConfirmation: number;
+    packagingMaterials: number;
+    returnShippingPaidBySeller: number;
+    offEbayLabelCost: number;
+  };
+  cogs: {
+    itemAcquisitionCost: number;
+    prepOrRefurbCost: number;
+    inboundFreightToYou: number;
+    perUnitOverheadAllocation: number;
+  };
+  sellerFees: {
+    categoryFinalValueFeePct: number;
+    perOrderFixedFee: number;
+    isStoreSubscriber: boolean;
+    feeCapAmount: number;
+    topRatedSellerDiscountPct: number;
+    topRatedPlusDiscountPct: number;
+    belowStandardSurchargePct: number;
+    veryHighINADSurchargePct: number;
+    listingUpgradesTotal: number;
+    insertionFeeAfterFree: number;
+    vehicleOrClassifiedFee: number;
+  };
+  ads: {
+    promotedStandardPct: number;
+    promotedStandardSharePct: number;
+    promotedAdvancedSpend: number;
+    promotedAdvancedSharePct: number;
+    offEbayAdsAttribution: number;
+  };
+  payments: {
+    processorPct: number;
+    processorFixed: number;
+    disputeOrChargebackFee: number;
+    payoutHoldReserve: number;
+  };
+  xborder: {
+    internationalTxnFee: number;
+    currencyConversionPct: number;
+    crossBorderHandling: number;
+  };
+  taxes: {
+    buyerTaxCollected: number;
+    isBuyerTaxPassThrough: boolean;
+    taxIncludedInProcessorBase: boolean;
+    vatOnSellerFees: number;
+  };
+  refunds: {
+    fullRefundAmount: number;
+    partialRefundAmount: number;
+    restockingDeduction: number;
+    returnLabelCost: number;
+    feeCredits: number;
+    nonRefundableFees: number;
+  };
+  adjustments: {
+    inrOrSnadRefunds: number;
+    paymentDisputesAgainstSeller: number;
+    goodwillCredits: number;
+    ebayAccountAdjustments: number;
+    appealReversals: number;
+  };
+  intlPrograms: {
+    eBayInternationalShippingWithheld: number;
+    internationalReturnHandling: number;
+    dutiesAndImportTaxesPassThrough: number;
+  };
+  payoutTiming: {
+    fundsPending: number;
+    fundsInTransit: number;
+    payoutScheduleDays: number;
+    cutoffMismatchAmount: number;
+    heldReservesChange: number;
+  };
+  storeOverhead: {
+    storeSubscriptionMonthlyFee: number;
+    freeListingsAllotmentValue: number;
+    quarterlyCredits: number;
+    thirdPartyToolsMonthly: number;
+  };
+  goals: {
+    weeklyNetTarget: number;
+    monthlyNetTarget: number;
+    rollingBaselineDays: number;
+  };
+  attribution: {
+    pctWithPromotedStandard: number;
+    pctWithPromotedAdvanced: number;
+    pctWithCouponsOrMarkdowns: number;
+    pctWithFreeShipping: number;
+    pctCrossBorder: number;
+    pctWithReturnsOrRefunds: number;
+  };
+};
+
+// For now, treat CalcOutput as the core CalcResult.
+// If you need more fields for UI, extend this type locally later.
+export type CalcOutput = CalcResult;
+
+/**
+ * Adapter: map UI buckets -> calc-core CalcInputs
+ * Conservative mapping using available fields. Refine as needed.
+ */
+function toCore(input: InputBuckets): CalcInputs {
+  const price = Number(input.sale.itemPrice) || 0;
+  const quantity = Math.max(0, Math.floor(Number(input.sale.quantity) || 0));
+  const shippingCharged = Number(input.sale.shippingChargedToBuyer) || 0;
+
+  // Discounts collapsed to a simple percent-of-price for now.
+  // If you later model these precisely, update calc-core or this adapter.
+  const discountDollars =
+    (Number(input.sale.sellerCouponDiscount) || 0) +
+    (Number(input.sale.orderLevelDiscount) || 0) +
+    (Number(input.sale.combinedOrderDiscount) || 0);
+  const discountPct = price > 0 ? (discountDollars / price) * 100 : 0;
+
+  // Shipping costs you pay per order
+  const shippingCost =
+    (Number(input.shipping.postageLabelCost) || 0) +
+    (Number(input.shipping.labelSurcharges) || 0) +
+    (Number(input.shipping.insurance) || 0) +
+    (Number(input.shipping.signatureOrConfirmation) || 0);
+  const packagingCostPerOrder = Number(input.shipping.packagingMaterials) || 0;
+
+  // COGS per item approximation
+  const cogsPerItem =
+    (Number(input.cogs.itemAcquisitionCost) || 0) +
+    (Number(input.cogs.prepOrRefurbCost) || 0) +
+    (Number(input.cogs.inboundFreightToYou) || 0) +
+    (Number(input.cogs.perUnitOverheadAllocation) || 0);
+
+  // Fees and payments
+  const finalValueFeeRate = Number(input.sellerFees.categoryFinalValueFeePct) || 0;
+  const paymentFixedFee = Number(input.sellerFees.perOrderFixedFee) || 0;
+  const topRatedSellerDiscountRate =
+    Number(input.sellerFees.topRatedSellerDiscountPct) || 0;
+
+  const paymentProcessingRate = Number(input.payments.processorPct) || 0;
+
+  // Ads
+  const promotedListingsRate = Number(input.ads.promotedStandardPct) || 0;
+  const promoShare = Number(input.ads.promotedStandardSharePct) || 0;
+  const promoAdvancedBudget = Number(input.ads.promotedAdvancedSpend) || 0;
+
+  // International
+  const intlFeePercent =
+    (Number(input.xborder.internationalTxnFee) || 0) +
+    (Number(input.xborder.currencyConversionPct) || 0);
+  const intlExtraShipCost = Number(input.xborder.crossBorderHandling) || 0;
+
+  // Taxes
+  const salesTaxOnItem = Number(input.taxes.buyerTaxCollected) || 0;
+  const marketplaceFacilitatorTax = Boolean(input.taxes.isBuyerTaxPassThrough);
+
+  // Refund expectations (simple)
+  const avgRefundPercent = 100; // if a return occurs assume full refund
+  const returnRatePercent =
+    Math.max(
+      0,
+      Math.min(
+        100,
+        Number(input.attribution.pctWithReturnsOrRefunds) || 0
+      )
+    );
+
+  // Misc
+  const monthlyStoreFee = Number(input.storeOverhead.storeSubscriptionMonthlyFee) || 0;
+  const miscFixedCostPerOrder = 0;
+  const miscPercentOfGross = 0;
+
+  const core: CalcInputs = {
+    price,
+    quantity,
+    cogs: cogsPerItem,
+
+    buyerPaysShipping: shippingCharged > 0,
+    shippingChargeToBuyer: shippingCharged,
+    yourShippingCost: shippingCost,
+    packagingCostPerOrder,
+    insuranceCost: 0,
+    handlingFeeToBuyer: 0,
+
+    promotedListingsRate,
+    promoShare,
+    promoAdvancedBudget,
+
+    finalValueFeeRate,
+    categoryFeeOverrideRate: 0,
+    topRatedSellerDiscountRate,
+    paymentProcessingRate,
+    paymentFixedFee,
+    monthlyStoreFee,
+
+    sellerCouponPercent: Math.max(0, Math.min(100, discountPct)),
+    offerToBuyerPercent: 0,
+
+    returnRatePercent,
+    avgRefundPercent,
+    labelCostOnReturns: Number(input.refunds.returnLabelCost) || 0,
+    restockingFeePercent: Math.max(0, Math.min(100, Number(input.refunds.restockingDeduction) || 0)),
+
+    salesTaxOnItem,
+    marketplaceFacilitatorTax,
+
+    disputeRatePercent: Math.max(0, Math.min(100, Number(input.adjustments.paymentDisputesAgainstSeller) || 0)),
+    avgDisputeLoss: 0,
+
+    intlFeePercent,
+    intlExtraShipCost,
+
+    miscFixedCostPerOrder,
+    miscPercentOfGross,
+  };
+
+  return core;
+}
+
+// Zeroed defaults matching app buckets
 const defaultBuckets: InputBuckets = {
   sale: {
     itemPrice: 0, quantity: 1, shippingChargedToBuyer: 0,
@@ -70,7 +305,7 @@ type State = {
   recompute: () => void;
 };
 
-const computeSafe = (input: InputBuckets): CalcOutput => compute(input);
+const computeSafe = (input: InputBuckets): CalcOutput => compute(toCore(input));
 
 export const useCalculatorStore = create<State>((set, get) => ({
   input: defaultBuckets,
@@ -79,14 +314,14 @@ export const useCalculatorStore = create<State>((set, get) => ({
   set: (path, value) => {
     const [bucketKey, fieldKey] = path.split(".") as [keyof InputBuckets, string];
     const prev = get().input;
-    const nextBucket = { ...(prev[bucketKey] as any), [fieldKey]: value };
+    const nextBucket = { ...(prev[bucketKey] as Record<string, unknown>), [fieldKey]: value };
     const nextInput = { ...prev, [bucketKey]: nextBucket } as InputBuckets;
     set({ input: nextInput, output: computeSafe(nextInput) });
   },
 
   setBucket: (key, bucket) => {
     const prev = get().input;
-    const nextInput = { ...prev, [key]: { ...(prev[key] as any), ...(bucket as any) } } as InputBuckets;
+    const nextInput = { ...prev, [key]: { ...(prev[key] as Record<string, unknown>), ...(bucket as Record<string, unknown>) } } as InputBuckets;
     set({ input: nextInput, output: computeSafe(nextInput) });
   },
 
