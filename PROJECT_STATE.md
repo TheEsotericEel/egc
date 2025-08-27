@@ -1,6 +1,6 @@
 # EGC — Project State (Single Source of Truth)
 
-_Last updated:_ 2025-08-26
+_Last updated:_ 2025-08-27
 
 ---
 
@@ -49,7 +49,7 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 
 1. Monorepo bootstrap
 - [x] 1-a  (repo with web, worker, calc-core created)
-- [x] 1-b  (tooling: TS, ESLint, Prettier, Vitest, Playwright)
+- [x] 1-b  (tooling: TS, ESLint, Prettier, Vitest, Playwright; web tsconfig updated with JSX/ESNext/interop; package.json patched)
 - [x] 1-c  (env schema validation + .env.example files)
 - [ ] 1-d
 - [ ] 1-e
@@ -74,22 +74,22 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 - [ ] 4-c
 
 5. calc-core package
-- [x] 5-a (types scaffolded)
-- [x] 5-b (functions: gross, fees, net; used in web demo)
+- [x] 5-a (types scaffolded; full InputBuckets, FeeBreakdown, Rollup, CalcOutput added)
+- [x] 5-b (functions: gross, net, compute implemented; deterministic, covers fees/COGS/refunds)
 - [ ] 5-c
 - [ ] 5-d
 
 6. CSV import (free tier)
 - [x] 6-a (mapping wizard UI with presets + validation integrated into /csv page)
-- [ ] 6-b (Web Worker + Papa Parse streaming parse, progress UI — scaffolded but not working)
-- [ ] 6-c (client-side rollups preview — code present, blocked until parsing fixed)
-- [ ] 6-d (first chart with Recharts — demo works, end-to-end blocked until parsing fixed)
+- [~] 6-b (Web Worker + Papa Parse streaming parse scaffolded; TS default import errors remain)
+- [ ] 6-c (client-side rollups preview blocked until parsing fixed)
+- [ ] 6-d (first chart with Recharts demo exists; blocked until parsing fixed)
 
 7. Estimation dashboard
-- [ ] 7-a
+- [x] 7-a (inputs wired with Zustand store; SaleAmountsSection built)
 - [ ] 7-b
-- [ ] 7-c
-- [ ] 7-d
+- [~] 7-c (compute() pure and performant, not benchmarked yet)
+- [x] 7-d (permanent “ESTIMATION” badge in CalculatorClient)
 
 8. Billing and gating
 - [ ] 8-a
@@ -179,9 +179,11 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 
 22. Implementation phases
 - [~] 22-a (partial)  
-  *Done:* repo setup, calc-core scaffold, env validation, CSV UI scaffold, mapping wizard component + integration.  
+  *Done:* repo setup, calc-core types+functions, env validation, CSV UI scaffold, mapping wizard integrated.  
   *Pending:* Neon DB initialization, rollups posting, worker parse fix.  
-- [ ] 22-b
+- [~] 22-b (partial)  
+  *Done:* calculatorStore (Zustand), SaleAmountsSection, CalculatorClient with tabs + rollup summary, permanent ESTIMATION badge.  
+  *Pending:* remaining input sections, goal tracking, CSV variance integration.  
 - [ ] 22-c
 - [ ] 22-d
 - [ ] 22-e
@@ -190,16 +192,17 @@ Two-tier tool for eBay sellers that estimates and tracks net income against goal
 
 ## 3) Current Status (one-paragraph)
 
-Monorepo and tooling in place. Mapping wizard and Recharts demo integrated into `/csv` page. Worker scaffolding exists but CSV parsing is not functioning yet, so rollup and chart preview are blocked. Recharts confirmed working via demo component. Next focus is fixing worker parsing end-to-end.
+Monorepo and tooling in place. `calc-core` now exports full types and a `compute()` covering all fee/COGS/refund buckets. Zustand store created and wired to a working `SaleAmountsSection`, rendered in a scaffolded `CalculatorClient` with rollup summary and permanent badge. Mapping wizard and Recharts demo integrated into `/csv` page. Worker scaffolding exists but CSV parsing still broken, blocking rollup and chart preview. Hydration mismatch fixed in layout. Next focus is wiring more sections of the dashboard and fixing CSV Worker end-to-end.
 
 ---
 
 ## 4) Next Actions (actionable queue)
-
+0) **Incorporate all math calculations** — ensure all math is coded, tested, and read for scaling when we add in the API.
 1) **Fix CSV Worker (6-b)** — ensure Papa Parse runs in Worker, progress + headers returned, rows accumulated.  
 2) **Compute rollups (6-c)** — once parsing works, feed real rows into rollupClient and preview table.  
 3) **First chart (6-d)** — confirm chart displays with actual rollup data, not demo.  
 4) **Neon DB init (2-a, 2-b)** — create project, roles `app_rw` and `app_ro`; set `DATABASE_URL` in `apps/worker/.env`.  
-5) **Rollups posting** — POST only summarized rollups to worker API.
+5) **Add remaining dashboard sections (7-a extension, 7-b)** — Shipping, COGS, Fees, Ads, Payments, etc.  
+6) **Rollups posting** — POST summarized rollups to worker API.  
 
 Owner: Joe
