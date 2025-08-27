@@ -2,16 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+// Monorepo-safe relative import to calc-core (5 levels up to repo root)
+import { compute, type CalcInputs, type CalcResult } from "../../../../../packages/calc-core/src/calc";
 
 /**
- * Schema-first inputs for scalability.
- * Add fields by editing FIELDS. No JSX surgery.
+ * CalculatorClient
+ * Uses calc-core for all math. Schema-driven UI.
  */
 
 type FieldType = "money" | "percent" | "number" | "boolean";
 
 type CalcFieldBase = {
-  key: string;
+  key: keyof CalcInputs;
   label: string;
   type: FieldType;
   help?: string;
@@ -32,14 +34,12 @@ type CalcFieldBase = {
     | "Other";
 };
 
-type MoneyField = CalcFieldBase & { type: "money" };
-type PercentField = CalcFieldBase & { type: "percent" };
-type NumberField = CalcFieldBase & { type: "number" };
-type BooleanField = CalcFieldBase & { type: "boolean" };
+type CalcField = CalcFieldBase;
 
-type CalcField = MoneyField | PercentField | NumberField | BooleanField;
-
-// Initial schema. Extend safely later.
+/**
+ * Schema: define all editable fields grouped logically.
+ * Only metadata. Math lives in calc-core.
+ */
 const FIELDS: CalcField[] = [
   // Sale
   { key: "price", label: "Selling price per item", type: "money", step: 0.01, min: 0, group: "Sale" },
@@ -67,6 +67,9 @@ const FIELDS: CalcField[] = [
   { key: "paymentFixedFee", label: "Payment fixed fee per order", type: "money", step: 0.01, min: 0, group: "Store" },
   { key: "monthlyStoreFee", label: "Monthly store subscription", type: "money", step: 0.01, min: 0, group: "Store" },
 
+  // Goals
+  { key: "netGoal", label: "Net goal (period)", type: "money", step: 0.01, min: 0, group: "Goals" },
+
   // Discounts / Markdown
   { key: "sellerCouponPercent", label: "Seller coupon or markdown", type: "percent", step: 0.1, min: 0, max: 100, group: "Discounts" },
   { key: "offerToBuyerPercent", label: "Offer-to-buyer discount", type: "percent", step: 0.1, min: 0, max: 100, group: "Discounts" },
@@ -92,13 +95,9 @@ const FIELDS: CalcField[] = [
   // Other
   { key: "miscFixedCostPerOrder", label: "Misc fixed cost (per order)", type: "money", step: 0.01, min: 0, group: "Other" },
   { key: "miscPercentOfGross", label: "Misc % of gross", type: "percent", step: 0.1, min: 0, max: 100, group: "Other" },
-
-  // Future fields slot
-  // __REPLACE_ME::FIELD_SCHEMA_ADDITIONS__
 ];
 
-// Default values for fast testing
-const DEFAULTS: Record<string, number | boolean> = {
+const DEFAULTS: CalcInputs = {
   // Sale
   price: 20,
   quantity: 1,
@@ -124,6 +123,9 @@ const DEFAULTS: Record<string, number | boolean> = {
   paymentProcessingRate: 2.9,
   paymentFixedFee: 0.3,
   monthlyStoreFee: 27.95,
+
+  // Goals
+  netGoal: 1000,
 
   // Discounts / Markdown
   sellerCouponPercent: 0,
@@ -152,136 +154,12 @@ const DEFAULTS: Record<string, number | boolean> = {
   miscPercentOfGross: 0,
 };
 
-type Inputs = typeof DEFAULTS;
-
-function asPct(n: number) {
-  return n / 100;
-}
-
-function currency(n: number) {
-  return n.toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
-}
-
-function clamp(n: number, min?: number, max?: number) {
-  if (min != null && n < min) return min;
-  if (max != null && n > max) return max;
-  return n;
-}
-
 /**
- * Prefill hook for 7-b:
- * Later replace the TODO with CSV/API sources.
- * Keeps UI stable while data source evolves.
+ * Hook for autofill (7-b).
+ * Replace with CSV/API later.
  */
-function usePrefill(current: Inputs): Inputs {
-  // TODO: __REPLACE_ME::PREFILL_SOURCE__
+function usePrefill(current: CalcInputs): CalcInputs {
   return current;
-}
-
-/**
- * Compute core rollup for preview purposes.
- * Replace with calc-core later.
- *
- * Notes:
- * - Many bucket fields are not yet applied to the math preview.
- * - We will integrate them incrementally with calc-core to keep recompute fast.
- * - This file focuses on schema/UI completeness first.
- */
-function compute(inputs: Inputs) {
-  const qty = Number(inputs.quantity) || 0;
-  const price = Number(inputs.price) || 0;
-  const cogs = Number(inputs.cogs) || 0;
-  const itemSubtotal = price * qty;
-
-  const buyerPaysShipping = Boolean(inputs.buyerPaysShipping);
-  const shippingChargeToBuyer = Number(inputs.shippingChargeToBuyer) || 0;
-  const yourShippingCost = Number(inputs.yourShippingCost) || 0;
-  const packaging = Number(inputs.packagingCostPerOrder) || 0;
-  const insurance = Number(inputs.insuranceCost) || 0;
-  const handlingToBuyer = Number(inputs.handlingFeeToBuyer) || 0;
-
-  // Discounts applied to item price
-  const sellerCoupon = asPct(Number(inputs.sellerCouponPercent) || 0);
-  const offerToBuyer = asPct(Number(inputs.offerToBuyerPercent) || 0);
-  const discountMultiplier = 1 - clamp(sellerCoupon + offerToBuyer, 0, 1);
-
-  // Gross includes item after discounts + shipping charged + handling charged
-  const discountedItemSubtotal = itemSubtotal * discountMultiplier;
-  const shippingRevenue = buyerPaysShipping ? shippingChargeToBuyer + handlingToBuyer : 0;
-  const grossBase = discountedItemSubtotal + shippingRevenue;
-
-  // FVF: optional category override, then TRS discount
-  const baseFvf = Number(inputs.categoryFeeOverrideRate) > 0 ? Number(inputs.categoryFeeOverrideRate) : Number(inputs.finalValueFeeRate) || 0;
-  const trsDiscount = asPct(Number(inputs.topRatedSellerDiscountRate) || 0);
-  const effectiveFvfRate = clamp(baseFvf * (1 - trsDiscount), 0, 100);
-  const finalValueFee = grossBase * asPct(effectiveFvfRate);
-
-  // Processing + fixed
-  const processingFee = grossBase * asPct(Number(inputs.paymentProcessingRate) || 0) + (qty > 0 ? Number(inputs.paymentFixedFee) || 0 : 0);
-
-  // Promoted Listings: share-based
-  const promoRate = asPct(Number(inputs.promotedListingsRate) || 0);
-  const promoShare = asPct(Number(clamp(Number(inputs.promoShare) || 0, 0, 100)));
-  const promoFee = grossBase * promoRate * promoShare;
-
-  // Misc percent
-  const miscPct = asPct(Number(inputs.miscPercentOfGross) || 0);
-  const miscPctFee = grossBase * miscPct;
-
-  // International extras
-  const intlPctFee = grossBase * asPct(Number(inputs.intlFeePercent) || 0);
-  const intlExtraShip = Number(inputs.intlExtraShipCost) || 0;
-
-  // Returns expected value (very simple placeholder EV)
-  const returnRate = asPct(Number(inputs.returnRatePercent) || 0);
-  const avgRefundPct = asPct(Number(inputs.avgRefundPercent) || 0);
-  const restockPct = asPct(Number(inputs.restockingFeePercent) || 0);
-  const expectedReturnLoss =
-    returnRate *
-    (grossBase * avgRefundPct - grossBase * restockPct + Number(inputs.labelCostOnReturns || 0));
-
-  // Disputes expected value
-  const disputeEV = asPct(Number(inputs.disputeRatePercent) || 0) * (Number(inputs.avgDisputeLoss) || 0);
-
-  // Per-order fixed costs
-  const perOrderFixed = packaging + insurance + (Number(inputs.miscFixedCostPerOrder) || 0);
-
-  // Shipping cost you pay, plus intl add-on EV
-  const totalShipCost = yourShippingCost + intlExtraShip;
-
-  // Costs
-  const fees =
-    finalValueFee +
-    processingFee +
-    promoFee +
-    miscPctFee +
-    intlPctFee +
-    disputeEV;
-
-  const totalCOGS = cogs * qty;
-
-  const net = grossBase - fees - totalCOGS - totalShipCost - perOrderFixed - expectedReturnLoss;
-  const marginPct = grossBase > 0 ? (net / grossBase) * 100 : 0;
-
-  return {
-    qty,
-    itemSubtotal: discountedItemSubtotal,
-    shippingRevenue,
-    gross: grossBase,
-    finalValueFee,
-    processingFee,
-    promoFee,
-    miscPctFee,
-    intlPctFee,
-    disputeEV,
-    fees,
-    totalCOGS,
-    totalShipCost,
-    perOrderFixed,
-    expectedReturnLoss,
-    net,
-    marginPct,
-  };
 }
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
@@ -334,11 +212,11 @@ function InputRenderer({
         className={common}
         value={Number(value)}
         step={step}
-        min={field.min as number | undefined}
-        max={field.max as number | undefined}
+        min={field.min}
+        max={field.max}
         onChange={(e) => {
           const n = Number(e.currentTarget.value);
-          onChange(clamp(isFinite(n) ? n : 0, field.min, field.max));
+          onChange(isFinite(n) ? n : 0);
         }}
       />
       {help}
@@ -364,10 +242,8 @@ function ResultCard({ label, value }: { label: string; value: string }) {
 }
 
 export default function CalculatorClient() {
-  // Build state from defaults
-  const [inputs, setInputs] = useState<Inputs>({ ...DEFAULTS });
+  const [inputs, setInputs] = useState<CalcInputs>({ ...DEFAULTS });
 
-  // Autofill slot for 7-b. Keeps UI constant as we swap sources later.
   const prefilled = usePrefill(inputs);
 
   const groups = useMemo(() => {
@@ -379,20 +255,18 @@ export default function CalculatorClient() {
     return Array.from(map.entries());
   }, []);
 
-  const result = useMemo(() => compute(prefilled), [prefilled]);
+  const result: CalcResult = useMemo(() => compute(prefilled), [prefilled]);
 
-  function update(key: string, val: number | boolean) {
-    setInputs((s) => ({ ...s, [key]: val }));
+  function update(key: keyof CalcInputs, val: number | boolean) {
+    setInputs((s: CalcInputs) => ({ ...s, [key]: val } as CalcInputs));
   }
 
-  // Optional: sync prefill back into inputs once at mount if it ever diverges
   useEffect(() => {
-    // reserved for future CSV/API prefill normalization
+    // reserved for CSV/API prefill normalization
   }, []);
 
   return (
     <main className="p-6 grid gap-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-semibold">Calculator Playground</h1>
@@ -403,18 +277,16 @@ export default function CalculatorClient() {
         </div>
       </div>
 
-      {/* Layout: Inputs left, Results+Chart right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Inputs column */}
         <div className="lg:col-span-1 space-y-4">
           {groups.map(([group, fields]) => (
             <Group key={group} title={group}>
               <div className="grid gap-3">
                 {fields.map((f) => (
                   <InputRenderer
-                    key={f.key}
+                    key={String(f.key)}
                     field={f}
-                    value={inputs[f.key] as number | boolean}
+                    value={inputs[f.key]}
                     onChange={(v) => update(f.key, v)}
                   />
                 ))}
@@ -423,38 +295,13 @@ export default function CalculatorClient() {
           ))}
         </div>
 
-        {/* Results + Chart column */}
         <div className="lg:col-span-2 space-y-4">
           <Group title="Results">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <ResultCard label="Qty" value={result.qty.toString()} />
-              <ResultCard label="Item Subtotal (after discounts)" value={currency(result.itemSubtotal)} />
-              <ResultCard label="Shipping Revenue" value={currency(result.shippingRevenue)} />
-              <ResultCard label="Gross" value={currency(result.gross)} />
-              <ResultCard label="Final Value Fee" value={currency(result.finalValueFee)} />
-              <ResultCard label="Processing Fee" value={currency(result.processingFee)} />
-              <ResultCard label="Promo Fee" value={currency(result.promoFee)} />
-              <ResultCard label="Misc % Fee" value={currency(result.miscPctFee)} />
-              <ResultCard label="Intl % Fee" value={currency(result.intlPctFee)} />
-              <ResultCard label="Dispute EV" value={currency(result.disputeEV)} />
-              <ResultCard label="COGS" value={currency(result.totalCOGS)} />
-              <ResultCard label="Shipping + Intl Extra" value={currency(result.totalShipCost)} />
-              <ResultCard label="Per-order Fixed" value={currency(result.perOrderFixed)} />
-              <ResultCard label="Returns EV" value={currency(result.expectedReturnLoss)} />
-              <ResultCard label="Net" value={currency(result.net)} />
+              <ResultCard label="Gross" value={result.gross.toLocaleString(undefined,{style:"currency",currency:"USD"})} />
+              <ResultCard label="Net" value={result.net.toLocaleString(undefined,{style:"currency",currency:"USD"})} />
               <ResultCard label="Margin %" value={result.marginPct.toFixed(2) + "%"} />
-              {/* __REPLACE_ME::RESULT_CARDS_EXTRA__ */}
-            </div>
-            <p className="text-xs opacity-60 pt-2">
-              __REPLACE_ME::BUCKET_NOTES__
-            </p>
-          </Group>
-
-          <Group title="Chart">
-            <div className="grid place-items-center h-48 border rounded-lg">
-              <p className="text-sm opacity-70">
-                Chart placeholder. Wire your <code>RechartsDemo</code> here later.
-              </p>
             </div>
           </Group>
         </div>

@@ -55,6 +55,9 @@ export type CalcInputs = {
   // Other
   miscFixedCostPerOrder: number;
   miscPercentOfGross: number;     // %
+
+  // Goals (UI-driven; not used in compute)
+  netGoal: number;
 };
 
 export type CalcResult = {
@@ -83,7 +86,6 @@ export type CalcResult = {
 function pct(n: number) { return n / 100; }
 
 export function round2(n: number) {
-  // Deterministic banker's rounding avoided; use standard half-away-from-zero
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
@@ -92,8 +94,8 @@ function clamp(n: number, min = 0, max = 1) {
 }
 
 /**
- * Core compute. Mirrors the UI preview but is framework-agnostic.
- * All monetary outputs are rounded to 2 decimals for stability.
+ * Core compute. UI may pass extra fields, but we only use those defined here.
+ * Monetary outputs are rounded to 2 decimals for stability.
  */
 export function compute(inputs: CalcInputs): CalcResult {
   const qty = Number.isFinite(inputs.quantity) ? inputs.quantity : 0;
@@ -163,7 +165,6 @@ export function compute(inputs: CalcInputs): CalcResult {
   // Net
   const netRaw = grossBase - fees - totalCOGS - totalShipCost - perOrderFixed - expectedReturnLoss;
 
-  // Round outputs that represent currency
   const result: CalcResult = {
     qty,
     itemSubtotal: round2(discountedItemSubtotal),
@@ -190,7 +191,7 @@ export function compute(inputs: CalcInputs): CalcResult {
   return result;
 }
 
-// Simple helpers that may be used in tests or elsewhere.
+// Simple helpers
 export function asp(totalRevenue: number, totalUnits: number) {
   if (!Number.isFinite(totalRevenue) || !Number.isFinite(totalUnits) || totalUnits <= 0) return 0;
   return round2(totalRevenue / totalUnits);
