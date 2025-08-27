@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
@@ -37,13 +37,16 @@ export default function CsvImport() {
   const [file, setFile] = useState<File | null>(null);
   const [header, setHeader] = useState(true);
   const [delimiter, setDelimiter] = useState(",");
-  const [progress, setProgress] = useState(0);
+  const [progressRows, setProgressRows] = useState(0);
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [preview, setPreview] = useState<CsvRow[]>([]);
   const [totalRows, setTotalRows] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [parsing, setParsing] = useState(false);
 
-  // streaming rollups
+  const [posted, setPosted] = useState<null | "ok" | "error">(null);
+  const [posting, setPosting] = useState(false);
+
   const [rollups, setRollups] = useState<Record<string, NumStats>>({});
   const workerRef = useRef<Worker | null>(null);
 
@@ -55,22 +58,19 @@ export default function CsvImport() {
       const msg = ev.data;
       switch (msg?.type) {
         case "PROGRESS":
-          setProgress(Number(msg.progress || 0));
+          setProgressRows(Number(msg.progress || 0));
+          setProgressPercent(typeof msg.percent === "number" ? msg.percent : null);
           break;
 
         case "CHUNK": {
           const rows = Array.isArray(msg.rows) ? (msg.rows as CsvRow[]) : [];
           if (rows.length) {
             setTotalRows((r) => r + rows.length);
-
-            // build preview list, capped
             setPreview((p) => {
               if (p.length >= DEFAULT_PREVIEW_ROWS) return p;
               const needed = DEFAULT_PREVIEW_ROWS - p.length;
               return p.concat(rows.slice(0, needed));
             });
-
-            // update numeric rollups in place without storing all rows
             setRollups((prev) => {
               const next = { ...prev };
               for (const row of rows) {
@@ -88,6 +88,7 @@ export default function CsvImport() {
         case "DONE":
           setParsing(false);
           setErrors(Array.isArray(msg.errors) ? msg.errors.map(String) : []);
+          void sendRollups();
           break;
 
         case "ERROR":
@@ -115,13 +116,12 @@ export default function CsvImport() {
       column: key,
       count: s.count,
       sum: s.sum,
-      min: s.min === Number.POSITIVE_INFINITY ? "" : s.min,
-      max: s.max === Number.NEGATIVE_INFINITY ? "" : s.max,
+      min: s.min === Number.POSITIVE_INFINITY ? 0 : s.min,
+      max: s.max === Number.NEGATIVE_INFINITY ? 0 : s.max,
       avg: s.count ? s.sum / s.count : 0,
     }));
   }, [rollups]);
 
-  // Chart data: top N numeric columns by count, show average value
   const CHART_MAX_SERIES = 12;
   const chartData = useMemo(() => {
     return [...numericRollupRows]
@@ -133,12 +133,13 @@ export default function CsvImport() {
   const onSelectFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
     setFile(f);
-    // reset state
     setPreview([]);
     setErrors([]);
-    setProgress(0);
+    setProgressRows(0);
+    setProgressPercent(null);
     setTotalRows(0);
     setRollups({});
+    setPosted(null);
   };
 
   const onParse = () => {
@@ -146,9 +147,11 @@ export default function CsvImport() {
     setParsing(true);
     setPreview([]);
     setErrors([]);
-    setProgress(0);
+    setProgressRows(0);
+    setProgressPercent(null);
     setTotalRows(0);
     setRollups({});
+    setPosted(null);
     workerRef.current.postMessage({
       type: "PARSE_FILE",
       file,
@@ -156,9 +159,33 @@ export default function CsvImport() {
     });
   };
 
+  async function sendRollups() {
+    try {
+      setPosting(true);
+      setPosted(null);
+      const payload = {
+        rollups: numericRollupRows,
+        totalRows,
+        headers,
+        fileMeta: file ? { name: file.name, size: file.size, type: file.type || undefined } : undefined,
+      };
+      const res = await fetch("/api/rollups", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setPosted(res.ok ? "ok" : "error");
+    } catch {
+      setPosted("error");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  const barWidth = progressPercent == null ? "100%" : `${progressPercent}%`;
+
   return (
     <div className="p-6">
-      {/* Higher contrast container and text */}
       <div className="max-w-6xl mx-auto rounded-2xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 shadow">
         <header className="px-6 pt-6 pb-4 border-b border-neutral-300 dark:border-neutral-800">
           <h2 className="text-xl font-semibold">Import CSV</h2>
@@ -214,17 +241,19 @@ export default function CsvImport() {
           </div>
         </section>
 
-        {progress > 0 && (
+        {(progressRows > 0 || progressPercent != null) && (
           <div className="px-6 pb-2">
-            <div className="text-sm">Rows processed: {progress.toLocaleString()}</div>
+            <div className="text-sm">
+              Rows processed: {progressRows.toLocaleString()}
+              {progressPercent != null ? ` • ${progressPercent}%` : ""}
+            </div>
             <div className="mt-2 h-2 rounded bg-neutral-200 dark:bg-neutral-800">
-              <div className="h-2 rounded bg-neutral-900 dark:bg-neutral-200 transition-all" style={{ width: "100%" }} />
+              <div className="h-2 rounded bg-neutral-900 dark:bg-neutral-200 transition-all" style={{ width: barWidth }} />
             </div>
           </div>
         )}
 
         <section className="px-6 py-4 grid gap-6 md:grid-cols-2">
-          {/* Preview table */}
           <div>
             <h3 className="text-lg font-semibold mb-2">
               Preview <span className="text-sm font-normal text-neutral-700 dark:text-neutral-300">(first {DEFAULT_PREVIEW_ROWS})</span>
@@ -269,7 +298,6 @@ export default function CsvImport() {
             )}
           </div>
 
-          {/* Rollup panel */}
           <div>
             <h3 className="text-lg font-semibold mb-2">Numeric column rollups</h3>
             {!numericRollupRows.length ? (
@@ -305,7 +333,6 @@ export default function CsvImport() {
           </div>
         </section>
 
-        {/* First chart from rollups */}
         <section className="px-6 pb-6">
           <h3 className="text-lg font-semibold mb-2">First chart: Average by numeric column</h3>
           {!chartData.length ? (
@@ -326,6 +353,10 @@ export default function CsvImport() {
           <p className="mt-2 text-xs text-neutral-700 dark:text-neutral-400">
             This validates CSV → rollups → chart. Replace with domain metrics next.
           </p>
+
+          {posting && <p className="text-xs mt-2 text-neutral-700 dark:text-neutral-400">Posting rollups…</p>}
+          {posted === "ok" && <p className="text-xs mt-2 text-green-700 dark:text-green-300">Rollups saved.</p>}
+          {posted === "error" && <p className="text-xs mt-2 text-red-700 dark:text-red-300">Failed to post rollups.</p>}
         </section>
 
         {!!errors.length && (
