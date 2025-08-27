@@ -2,6 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 
 type CsvRow = Record<string, string | number>;
 
@@ -114,6 +123,16 @@ export default function CsvImport() {
     }));
   }, [rollups]);
 
+  // Chart data: top N numeric columns by count, show average value
+  const CHART_MAX_SERIES = 12;
+  const chartData = useMemo(() => {
+    const rows = [...numericRollupRows]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, CHART_MAX_SERIES)
+      .map((r) => ({ column: r.column, avg: r.avg }));
+    return rows;
+  }, [numericRollupRows]);
+
   const onSelectFile = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
     setFile(f);
@@ -147,7 +166,7 @@ export default function CsvImport() {
         <header className="px-6 pt-6 pb-4 border-b border-neutral-300 dark:border-neutral-800">
           <h2 className="text-xl font-semibold">Import CSV</h2>
           <p className="text-sm text-neutral-700 dark:text-neutral-300">
-            Parse a CSV. Preview first {DEFAULT_PREVIEW_ROWS}. Live rollups compute as rows stream in.
+            Parse a CSV. Preview first {DEFAULT_PREVIEW_ROWS}. Live rollups compute as rows stream in, then a chart renders from those rollups.
           </p>
         </header>
 
@@ -202,10 +221,7 @@ export default function CsvImport() {
           <div className="px-6 pb-2">
             <div className="text-sm">Rows processed: {progress.toLocaleString()}</div>
             <div className="mt-2 h-2 rounded bg-neutral-200 dark:bg-neutral-800">
-              <div
-                className="h-2 rounded bg-neutral-900 dark:bg-neutral-200 transition-all"
-                style={{ width: "100%" }}
-              />
+              <div className="h-2 rounded bg-neutral-900 dark:bg-neutral-200 transition-all" style={{ width: "100%" }} />
             </div>
           </div>
         )}
@@ -290,6 +306,29 @@ export default function CsvImport() {
               Rollups compute from streamed chunks. No full CSV kept in memory.
             </p>
           </div>
+        </section>
+
+        {/* First chart from rollups */}
+        <section className="px-6 pb-6">
+          <h3 className="text-lg font-semibold mb-2">First chart: Average by numeric column</h3>
+          {!chartData.length ? (
+            <div className="text-sm text-neutral-700 dark:text-neutral-300">No numeric columns to chart yet.</div>
+          ) : (
+            <div className="h-80 rounded-2xl border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-neutral-950 p-3">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="column" angle={-20} textAnchor="end" interval={0} height={60} />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="avg" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          <p className="mt-2 text-xs text-neutral-700 dark:text-neutral-400">
+            This validates CSV → rollups → chart. Replace with domain metrics next.
+          </p>
         </section>
 
         {!!errors.length && (
